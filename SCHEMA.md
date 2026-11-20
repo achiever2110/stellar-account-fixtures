@@ -67,6 +67,48 @@ anywhere, and its `scenario` must start with `synthetic:`. A synthetic fixture's
 `account_id` still has to be a valid `G...` strkey, so a consumer's tests can treat both
 kinds the same way.
 
+### Worked examples
+
+Captured fixture example:
+
+```toml
+# Worked example of a captured fixture sidecar (SCHEMA.md Section 3)
+schema_version = 1
+id = "default-plain"
+kind = "captured"
+scenario = "one signer which is the master key at weight 1, all thresholds zero and no optional fields, the account a rule has to leave alone"
+account_id = "GA7DTK7GPOEQGXHI7MLA2OAIEL4365VG6PXUAVREMDVLC4MJIJ62KR75"
+network = "public"
+shape = [
+  "master_is_signer",
+  "no_data",
+  "no_home_domain",
+  "no_inflation",
+  "not_sponsored",
+  "not_sponsoring",
+  "single_signer",
+  "thresholds_zero",
+]
+source_url = "https://horizon.stellar.org/accounts/GA7DTK7GPOEQGXHI7MLA2OAIEL4365VG6PXUAVREMDVLC4MJIJ62KR75"
+captured_at = "2026-11-02T11:48:46Z"
+ledger = 65266813
+horizon_version = "30.0.0-b3ff4119cc99ebcc8048334f5ec64e78c16d1666"
+sha256 = "d14f1f7bbcf10f9e1d7e162b59db1481ecd1ea542a7f21766a53fafdebdb4cdb"
+```
+
+Synthetic fixture example:
+
+```toml
+# Worked example of a synthetic fixture sidecar (SCHEMA.md Section 3)
+schema_version = 1
+id = "synthetic-zero-threshold"
+kind = "synthetic"
+scenario = "synthetic: fabricated zero-threshold shape to exercise offline validator logic without live network capture"
+account_id = "GA7DTK7GPOEQGXHI7MLA2OAIEL4365VG6PXUAVREMDVLC4MJIJ62KR75"
+network = "testnet"
+shape = ["single_signer", "thresholds_zero"]
+```
+
 ## 4. What `account_id` has to satisfy
 
 Only `G...` (ed25519 public key, version byte 48). `M...`, `C...`, `T...` and `X...` are

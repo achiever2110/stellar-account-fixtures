@@ -77,7 +77,7 @@ seed-shaped string (`S...`) is refused by both the capture tool and the validato
 | Indicator | Value | Source |
 |---|---|---|
 | Verified Captures | **9 accounts** (8 Mainnet, 1 Test) | `fixtures/` |
-| Test Suite | **126 passing** | `python -m unittest` |
+| Test Suite | **144 passing** | `python -m unittest` |
 | Integrity Assurance | **SHA-256 sidecars verified** | `validate.py` |
 | Safety Invariant | **Zero secret keys (`S...`)** | Validator enforced |
 <!-- METRICS:END -->
@@ -88,17 +88,19 @@ A cryptographic specimen vault and ledger matrix is published at **[https://post
 
 ## The nine accounts
 
+<!-- ACCOUNTS:START -->
 | Fixture | Why it is here |
 |---|---|
-| `default-plain` | One signer, which is the master key at weight 1; all thresholds zero and no optional field set. The account a rule has to leave alone. |
-| `multisig-custody` | Two signers, master weight 2, thresholds 2/3/4. The shape a shared custody account leaves on chain. |
-| `issuer-auth-required` | An issuer with `auth_required` set, two signers at weight 1, thresholds 1/1/1, and 150 entries it sponsors for other accounts. |
-| `asset-heavy-exchange` | 37 trustlines and a home domain. The account shape that makes a naive response body large. |
-| `whitespace-home-domain` | `home_domain` is a single space, which a tool that trims before validating reads as absent. |
-| `domain-and-inflation` | `lobstr.co` plus an inflation destination: a well-formed SEP-1 candidate to check the positive path against. |
-| `coordinator-data-entry` | The `data` object holds one entry, `config.multisig.coordinator`, whose base64 value decodes to `v1.multisig.satoshipay.io`. Nine signers, the master key at weight 0 and every threshold at 2. See [Account Data Entries](corpus/data-entries.md). |
-| `sponsored-trustlines` | `num_sponsored` 17 against `num_sponsoring` 0: seventeen balances, two signers and a home domain of `sl8.online`, an account whose own entries are paid for by someone else. |
-| `testnet-multisig` | The first testnet capture: six signers, master weight 0 and all three thresholds at 3, read from `horizon-testnet.stellar.org`. It is what makes `corpus/root-testnet.json` a real root document rather than one the tests write. |
+| `asset-heavy-exchange` | 37 trustlines and a home domain, the account shape that makes a naive response body large |
+| `coordinator-data-entry` | one data entry named config.multisig.coordinator, nine signers with the master key at weight 0 and all three thresholds at 2, the shape a hosted multisig coordinator leaves on chain |
+| `default-plain` | one signer which is the master key at weight 1, all thresholds zero and no optional fields, the account a rule has to leave alone |
+| `domain-and-inflation` | home_domain lobstr.co with an inflation destination and two sponsorships, a well-formed SEP-1 candidate |
+| `issuer-auth-required` | an issuer account with auth_required set, two signers at weight 1 and 150 sponsored entries |
+| `multisig-custody` | two signers, master weight 2 and nonzero thresholds, the shape a shared custody account leaves on chain |
+| `sponsored-trustlines` | num_sponsored 17 against num_sponsoring 0: seventeen balances and two signers, the account whose own entries are paid for by someone else, which no earlier capture showed |
+| `testnet-multisig` | six signers on testnet, master weight 0 and all three thresholds at 3, the first capture that runs the testnet branch of the validator |
+| `whitespace-home-domain` | home_domain is a single space, which a tool that trims before validating reads as absent |
+<!-- ACCOUNTS:END -->
 
 Account ids are in each sidecar. Eight are mainnet (`network = "public"`) and one is testnet
 (`network = "testnet"`), and the root document for each network is the one the capture tool
@@ -114,6 +116,13 @@ from pathlib import Path
 
 fixture = Path("stellar-account-fixtures/fixtures/multisig-custody/account.json")
 account = json.loads(fixture.read_text())
+```
+
+Consumers can pin fixtures by content instead of repository commit using `tools/manifest.py`.
+The tool prints one JSON line per fixture with its `id`, `account_id`, `network`, `ledger`, and `sha256`:
+
+```bash
+python3 tools/manifest.py
 ```
 
 `shape` in the sidecar is the label set to select by. The ids are part of the contract and

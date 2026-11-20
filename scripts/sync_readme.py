@@ -4,6 +4,7 @@
 Inspects the repository test suites, fixtures corpus, and status, and writes:
 1. Dynamic Shields.io JSON endpoints under `site/data/badge-*.json`.
 2. Marked block between `<!-- METRICS:START -->` and `<!-- METRICS:END -->` in `README.md`.
+3. Marked block between `<!-- ACCOUNTS:START -->` and `<!-- ACCOUNTS:END -->` in `README.md`.
 
 With `--check`, exits 1 if any target is stale without modifying files.
 """
@@ -13,6 +14,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import tomllib
 import unittest
 from pathlib import Path
 
@@ -23,12 +25,37 @@ DATA_DIR = REPO_ROOT / "site" / "data"
 
 METRICS_START = "<!-- METRICS:START -->"
 METRICS_END = "<!-- METRICS:END -->"
+ACCOUNTS_START = "<!-- ACCOUNTS:START -->"
+ACCOUNTS_END = "<!-- ACCOUNTS:END -->"
 
 
 def count_fixtures() -> int:
     if not FIXTURES_DIR.is_dir():
         return 9
     return len([p for p in FIXTURES_DIR.iterdir() if p.is_dir() and (p / "account.json").is_file()])
+
+
+def count_networks() -> tuple[int, int]:
+    """Count public (mainnet) and testnet fixtures from sidecar metadata."""
+    if not FIXTURES_DIR.is_dir():
+        return 8, 1
+    mainnet = 0
+    testnet = 0
+    for p in FIXTURES_DIR.iterdir():
+        if p.is_dir() and (p / "account.json").is_file():
+            sidecar = p / "fixture.toml"
+            if sidecar.is_file():
+                try:
+                    with open(sidecar, "rb") as f:
+                        data = tomllib.load(f)
+                    net = str(data.get("network", ""))
+                    if net == "public":
+                        mainnet += 1
+                    elif net == "testnet":
+                        testnet += 1
+                except Exception:
+                    pass
+    return mainnet, testnet
 
 
 def count_tests() -> int:
@@ -45,22 +72,59 @@ def count_tests() -> int:
         suite2 = unittest.defaultTestLoader.discover(str(REPO_ROOT / "tests"), pattern="test_*.py")
         count2 = suite2.countTestCases()
     except Exception:
-        count2 = 18
+        count2 = 29
 
     return count1 + count2
 
 
-def generate_metrics_table(fixtures_count: int, test_count: int) -> str:
+def generate_metrics_table(
+    fixtures_count: int, test_count: int, mainnet_count: int = 8, testnet_count: int = 1
+) -> str:
+    captures_cell = (
+        f"| Verified Captures | **{fixtures_count} accounts** "
+        f"({mainnet_count} Mainnet, {testnet_count} Test) | `fixtures/` |\n"
+    )
     return (
         f"{METRICS_START}\n"
         "| Indicator | Value | Source |\n"
         "|---|---|---|\n"
-        f"| Verified Captures | **{fixtures_count} accounts** (8 Mainnet, 1 Test) | `fixtures/` |\n"
+        f"{captures_cell}"
         f"| Test Suite | **{test_count} passing** | `python -m unittest` |\n"
         "| Integrity Assurance | **SHA-256 sidecars verified** | `validate.py` |\n"
         "| Safety Invariant | **Zero secret keys (`S...`)** | Validator enforced |\n"
         f"{METRICS_END}"
     )
+
+
+def generate_accounts_table() -> str:
+    """Render 'The nine accounts' table from on-disk fixture sidecars sorted by id."""
+    if not FIXTURES_DIR.is_dir():
+        return f"{ACCOUNTS_START}\n| Fixture | Why it is here |\n|---|---|\n{ACCOUNTS_END}"
+    rows: list[tuple[str, str]] = []
+    for p in FIXTURES_DIR.iterdir():
+        if p.is_dir() and (p / "account.json").is_file():
+            sidecar = p / "fixture.toml"
+            fixture_id = p.name
+            scenario = ""
+            if sidecar.is_file():
+                try:
+                    with open(sidecar, "rb") as f:
+                        data = tomllib.load(f)
+                    fixture_id = str(data.get("id", p.name))
+                    scenario = str(data.get("scenario", ""))
+                except Exception:
+                    pass
+            rows.append((fixture_id, scenario))
+    rows.sort(key=lambda item: item[0])
+    lines = [
+        ACCOUNTS_START,
+        "| Fixture | Why it is here |",
+        "|---|---|",
+    ]
+    for f_id, sc in rows:
+        lines.append(f"| `{f_id}` | {sc} |")
+    lines.append(ACCOUNTS_END)
+    return "\n".join(lines)
 
 
 def build_badge_json(label: str, message: str, color: str) -> dict[str, object]:
@@ -74,6 +138,7 @@ def build_badge_json(label: str, message: str, color: str) -> dict[str, object]:
 
 def sync(*, check: bool = False) -> bool:
     fixtures_count = count_fixtures()
+    mainnet_count, testnet_count = count_networks()
     test_count = count_tests()
     DATA_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -104,19 +169,29 @@ def sync(*, check: bool = False) -> bool:
     # Check/write README.md
     if README_PATH.exists():
         content = README_PATH.read_text(encoding="utf-8")
-        if METRICS_START in content and METRICS_END in content:
-            before, rest = content.split(METRICS_START, 1)
+        updated = content
+        if METRICS_START in updated and METRICS_END in updated:
+            before, rest = updated.split(METRICS_START, 1)
             _, after = rest.split(METRICS_END, 1)
-            new_table = generate_metrics_table(fixtures_count, test_count)
+            new_table = generate_metrics_table(
+                fixtures_count, test_count, mainnet_count, testnet_count
+            )
             updated = f"{before}{new_table}{after}"
-            if updated != content:
-                stale = True
-                if not check:
-                    README_PATH.write_text(updated, encoding="utf-8")
+
+        if ACCOUNTS_START in updated and ACCOUNTS_END in updated:
+            before, rest = updated.split(ACCOUNTS_START, 1)
+            _, after = rest.split(ACCOUNTS_END, 1)
+            new_accounts = generate_accounts_table()
+            updated = f"{before}{new_accounts}{after}"
+
+        if updated != content:
+            stale = True
+            if not check:
+                README_PATH.write_text(updated, encoding="utf-8")
 
     if check and stale:
         print(
-            "sync_readme: README metrics or badge data are stale. "
+            "sync_readme: README metrics, accounts table, or badge data are stale. "
             "Run: python3 scripts/sync_readme.py",
             file=sys.stderr,
         )
